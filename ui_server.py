@@ -40,6 +40,7 @@ class SessionState:
     transcript: list[str] = field(default_factory=list)
     start_time: float = field(default_factory=time.monotonic)
     time_limit_seconds: int = DEFAULT_TIME_LIMIT_SECONDS
+    api_choice: str = "gemini"
 
 
 SESSIONS: dict[str, SessionState] = {}
@@ -67,8 +68,8 @@ def _session_timeout(session: SessionState) -> bool:
     return time.monotonic() - session.start_time >= session.time_limit_seconds
 
 
-async def _run_evaluator(transcript: list[str]) -> str:
-    eval_runner, eval_session = await build_eval_runtime()
+async def _run_evaluator(transcript: list[str], api_choice: str = "gemini") -> str:
+    eval_runner, eval_session = await build_eval_runtime(api_choice=api_choice)
     eval_prompt = build_eval_prompt("standup", transcript)
     events = eval_runner.run_async(
         user_id=eval_session.user_id,
@@ -178,6 +179,7 @@ class UIRequestHandler(SimpleHTTPRequestHandler):
             session_id=session_id,
             scenario_key=scenario.key,
             time_limit_seconds=time_limit,
+            api_choice=payload.get("api_choice", "gemini"),
         )
         SESSIONS[session_id] = session
         stage = scenario.stages[0]
@@ -204,6 +206,17 @@ class UIRequestHandler(SimpleHTTPRequestHandler):
             return
         session = SESSIONS[session_id]
         scenario = get_scenario()
+
+        if session.completed:
+            self._json_response(
+                {
+                    "completed": True,
+                    "final_rank": session.final_rank,
+                    "score": _calculate_score(session.final_rank),
+                    "system": "The session has already ended.",
+                }
+            )
+            return
 
         if _session_timeout(session):
             session.completed = True
@@ -290,7 +303,7 @@ class UIRequestHandler(SimpleHTTPRequestHandler):
         eval_text = None
         if session.completed:
             try:
-                eval_text = asyncio.run(_run_evaluator(session.transcript))
+                eval_text = asyncio.run(_run_evaluator(session.transcript, api_choice=session.api_choice))
             except Exception:
                 eval_text = None
             if eval_text:

@@ -82,7 +82,7 @@ STAGE_1 = Stage(
     key="STAGE_1",
     title="접근 단계 (The Approach)",
     prompt=(
-        "SLUSH 2025 스타트업 라운지에서 붐비는 자리에 빈 의자 하나를 발견했습니다. "
+        "SusHi Tech Tokyo 2026 스타트업 라운지에서 붐비는 자리에 빈 의자 하나를 발견했습니다. "
         "앉아도 되는지 물어보시겠습니까?"
     ),
     branches=(
@@ -321,8 +321,8 @@ STAGE_4 = Stage(
 STANDUP = StandupScenario(
     key="standup",
     title="Startup Standup 2.0: The Bottleneck Breaker",
-    description="SLUSH 2025 스타트업 라운지에서 Sarah를 만납니다.",
-    background="배경: SLUSH 2025 스타트업 라운지",
+    description="SusHi Tech Tokyo 2026 스타트업 라운지에서 Sarah를 만납니다.",
+    background="배경: SusHi Tech Tokyo 2026 스타트업 라운지",
     npc_state="NPC: Sarah (벤처 캐피털리스트) - 상태: 매우 바쁨, 경계심 높음",
     items="아이템: 사탕, QR 명함",
     success_message="좋습니다. 흥미롭군요. 정식 미팅에서 더 자세히 이야기해 봅시다.",

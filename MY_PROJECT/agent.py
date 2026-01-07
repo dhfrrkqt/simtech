@@ -39,7 +39,7 @@ ACTIONS: list[Action] = [
     Action(
         key="1",
         title="Startup Standup 2.0 시나리오",
-        description="SLUSH 2025 네트워킹 라운지에서 Sarah와 대화하며 기회를 잡으세요.",
+        description="SusHi Tech Tokyo 2026 네트워킹 라운지에서 Sarah와 대화하며 기회를 잡으세요.",
         runner=_run_social_standup,
     ),
     Action(

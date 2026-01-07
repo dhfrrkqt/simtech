@@ -5,8 +5,8 @@ from google.genai import types
 from evaluator_agent.agent import build_agent
 
 
-async def build_runtime() -> tuple[Runner, object]:
-    agent = build_agent()
+async def build_runtime(api_choice: str = "gemini") -> tuple[Runner, object]:
+    agent = build_agent(api_choice=api_choice)
     session_service = InMemorySessionService()
     runner = Runner(
         app_name=agent.name,

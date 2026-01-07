@@ -37,6 +37,13 @@ const closeModal = document.getElementById("closeModal");
 const selectScenarioBtns = document.querySelectorAll(".select-scenario-btn");
 
 /**
+ * API 선택 모달 관련 요소
+ */
+const apiModal = document.getElementById("apiModal");
+const closeApiModal = document.getElementById("closeApiModal");
+const selectApiBtns = document.querySelectorAll(".select-api-btn");
+
+/**
  * 애플리케이션의 현재 상태를 저장하는 객체
  */
 const state = {
@@ -45,6 +52,8 @@ const state = {
   recording: false,    // 현재 녹음 중인지 여부
   sessionId: null,     // 현재 세션 고유 ID
   stage: null,         // 현재 진행 중인 시나리오 스테이지 정보
+  selectedScenario: null, // 임시 저장된 시나리오 키
+  selectedApi: null,      // 선택된 API (gemini 또는 openai)
   settings: {
     timeout: 240,      // 세션 타임아웃 (초)
     recordSeconds: 5,  // 음성 녹음 시간 (초)
@@ -183,6 +192,8 @@ const startSession = async () => {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
+        scenario_key: state.selectedScenario,
+        api_choice: state.selectedApi,
         timeout_seconds: state.settings.timeout,
         tts_enabled: state.settings.ttsEnabled,
         input_mode: state.mode,
@@ -218,6 +229,12 @@ const resetSession = () => {
   addBubble("Session ready. Click Start when you are ready.", "agent");
   scoreValue.textContent = "--";
   scoreNote.textContent = "Score updates after the session ends.";
+
+  // 세션 리셋 시 입력 다시 활성화
+  chatInput.disabled = false;
+  sendBtn.disabled = false;
+  voiceBtn.disabled = false;
+  voiceBtn.textContent = "Record 5s";
 };
 
 /**
@@ -295,6 +312,11 @@ const handleSend = async (text) => {
     // 세션 완료 처리
     if (payload.completed) {
       setStatus("Complete");
+      // 세션 종료 시 입력 비활성화
+      chatInput.disabled = true;
+      sendBtn.disabled = true;
+      voiceBtn.disabled = true;
+      voiceBtn.textContent = "Session Ended";
     }
   } catch (error) {
     addBubble("Failed to reach server.", "agent");
@@ -469,24 +491,42 @@ closeModal.addEventListener("click", () => {
   scenarioModal.classList.remove("is-active");
 });
 
-// 모달 외부 영역 클릭 시 모달을 닫습니다.
-window.addEventListener("click", (event) => {
-  if (event.target === scenarioModal) {
-    scenarioModal.classList.remove("is-active");
-  }
-});
-
 // 시나리오 선택 버튼 클릭 시 처리
 selectScenarioBtns.forEach((btn) => {
   btn.addEventListener("click", () => {
     const scenario = btn.dataset.scenario;
     if (scenario === "business") {
-      // 비즈니스 시나리오 선택 시 모달을 닫고 세션을 시작합니다.
+      // 시나리오 임시 저장 후 API 선택 모달로 넘어갑니다.
+      state.selectedScenario = scenario;
       scenarioModal.classList.remove("is-active");
-      setStatus("Loading");
-      startSession();
+      apiModal.classList.add("is-active");
     }
   });
+});
+
+// API 선택 제어 버튼 이벤트
+closeApiModal.addEventListener("click", () => {
+  apiModal.classList.remove("is-active");
+});
+
+// API 선택 버튼 클릭 시 세션 진짜 시작
+selectApiBtns.forEach((btn) => {
+  btn.addEventListener("click", () => {
+    state.selectedApi = btn.dataset.api;
+    apiModal.classList.remove("is-active");
+    setStatus("Loading");
+    startSession();
+  });
+});
+
+// 모달 외부 영역 클릭 시 닫기 (API 모달 포함)
+window.addEventListener("click", (event) => {
+  if (event.target === scenarioModal) {
+    scenarioModal.classList.remove("is-active");
+  }
+  if (event.target === apiModal) {
+    apiModal.classList.remove("is-active");
+  }
 });
 
 // 리셋 버튼 클릭

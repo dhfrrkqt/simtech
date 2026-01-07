@@ -37,7 +37,7 @@ ACTIONS: list[Action] = [
     Action(
         key="1",
         title="Startup Standup 2.0 scenario",
-        description="Talk with Sarah at the SLUSH 2025 networking lounge.",
+        description="Talk with Sarah at the SusHi Tech Tokyo 2026 networking lounge.",
         runner=_run_social_standup,
     ),
     Action(

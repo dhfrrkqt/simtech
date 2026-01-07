@@ -30,12 +30,18 @@ const scenarioModal = document.getElementById("scenarioModal");
 const closeModal = document.getElementById("closeModal");
 const selectScenarioBtns = document.querySelectorAll(".select-scenario-btn");
 
+const apiModal = document.getElementById("apiModal");
+const closeApiModal = document.getElementById("closeApiModal");
+const selectApiBtns = document.querySelectorAll(".select-api-btn");
+
 const state = {
   mode: "chat",
   active: false,
   recording: false,
   sessionId: null,
   stage: null,
+  selectedScenario: null,
+  selectedApi: null,
   settings: {
     timeout: 240,
     recordSeconds: 5,
@@ -64,13 +70,10 @@ const updateModeView = () => {
   voicePanel.classList.toggle("is-visible", state.mode === "voice");
   chatInputRow.classList.toggle("is-hidden", state.mode === "voice");
   chatInput.placeholder = "Type your response";
-
   modeButtons.forEach((btn) => {
     btn.classList.toggle("is-active", btn.dataset.mode === state.mode);
   });
-
   envMode.textContent = state.mode === "voice" ? "Voice" : "Chat";
-
   inputModeRadios.forEach((radio) => {
     radio.checked = radio.value === state.mode;
   });
@@ -119,9 +122,7 @@ const saveSettings = () => {
 };
 
 const applyConfigDefaults = async () => {
-  if (localStorage.getItem("uiRecordSeconds")) {
-    return;
-  }
+  if (localStorage.getItem("uiRecordSeconds")) return;
   try {
     const response = await fetch("/api/config");
     const payload = await response.json();
@@ -131,9 +132,7 @@ const applyConfigDefaults = async () => {
       recordSecondsInput.value = recordDefault;
       updateEnvPanel();
     }
-  } catch (error) {
-    return;
-  }
+  } catch (error) { }
 };
 
 const startSession = async () => {
@@ -142,6 +141,8 @@ const startSession = async () => {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
+        scenario_key: state.selectedScenario,
+        api_choice: state.selectedApi,
         timeout_seconds: state.settings.timeout,
         tts_enabled: state.settings.ttsEnabled,
         input_mode: state.mode,
@@ -159,7 +160,7 @@ const startSession = async () => {
     setStatus("Active");
     addBubble(`Coach: ${payload.stage.prompt}`, "coach");
   } catch (error) {
-    addBubble("Failed to start session. Is the server running?", "agent");
+    addBubble("Failed to start session.", "agent");
     setStatus("Idle");
   }
 };
@@ -174,11 +175,14 @@ const resetSession = () => {
   addBubble("Session ready. Click Start when you are ready.", "agent");
   scoreValue.textContent = "--";
   scoreNote.textContent = "Score updates after the session ends.";
+  chatInput.disabled = false;
+  sendBtn.disabled = false;
+  voiceBtn.disabled = false;
+  voiceBtn.textContent = "Record 5s";
 };
 
 const speakText = (text) => {
-  if (!state.settings.ttsEnabled) return;
-  if (!window.speechSynthesis) return;
+  if (!state.settings.ttsEnabled || !window.speechSynthesis) return;
   const utterance = new SpeechSynthesisUtterance(text);
   utterance.lang = "en-US";
   window.speechSynthesis.speak(utterance);
@@ -210,25 +214,15 @@ const handleSend = async (text) => {
       addBubble(payload.sarah, "agent");
       speakText(payload.sarah);
     }
-    if (payload.system) {
-      addBubble(payload.system, "coach");
-    }
-    if (payload.coach_prompt) {
-      addBubble(payload.coach_prompt, "coach");
-    }
+    if (payload.system) addBubble(payload.system, "coach");
+    if (payload.coach_prompt) addBubble(payload.coach_prompt, "coach");
     if (payload.success_message) {
       addBubble(payload.success_message, "agent");
       speakText(payload.success_message);
     }
-    if (payload.evaluation) {
-      addBubble(payload.evaluation, "coach");
-    }
-    if (payload.score) {
-      scoreValue.textContent = payload.score;
-    }
-    if (payload.final_rank) {
-      scoreNote.textContent = `Final rank: ${payload.final_rank}`;
-    }
+    if (payload.evaluation) addBubble(payload.evaluation, "coach");
+    if (payload.score) scoreValue.textContent = payload.score;
+    if (payload.final_rank) scoreNote.textContent = `Final rank: ${payload.final_rank}`;
     if (payload.stage) {
       state.stage = payload.stage;
       updateStageView();
@@ -238,6 +232,10 @@ const handleSend = async (text) => {
     }
     if (payload.completed) {
       setStatus("Complete");
+      chatInput.disabled = true;
+      sendBtn.disabled = true;
+      voiceBtn.disabled = true;
+      voiceBtn.textContent = "Session Ended";
     }
   } catch (error) {
     addBubble("Failed to reach server.", "agent");
@@ -247,17 +245,15 @@ const handleSend = async (text) => {
 const mergeBuffers = (buffers, length) => {
   const result = new Float32Array(length);
   let offset = 0;
-  buffers.forEach((buffer) => {
-    result.set(buffer, offset);
-    offset += buffer.length;
+  buffers.forEach((b) => {
+    result.set(b, offset);
+    offset += b.length;
   });
   return result;
 };
 
 const downsampleBuffer = (buffer, sampleRate, targetRate) => {
-  if (targetRate === sampleRate) {
-    return buffer;
-  }
+  if (targetRate === sampleRate) return buffer;
   const ratio = sampleRate / targetRate;
   const newLength = Math.round(buffer.length / ratio);
   const result = new Float32Array(newLength);
@@ -267,12 +263,12 @@ const downsampleBuffer = (buffer, sampleRate, targetRate) => {
     const nextOffsetBuffer = Math.round((offsetResult + 1) * ratio);
     let accum = 0;
     let count = 0;
-    for (let i = offsetBuffer; i < nextOffsetBuffer && i < buffer.length; i += 1) {
+    for (let i = offsetBuffer; i < nextOffsetBuffer && i < buffer.length; i++) {
       accum += buffer[i];
-      count += 1;
+      count++;
     }
     result[offsetResult] = accum / count;
-    offsetResult += 1;
+    offsetResult++;
     offsetBuffer = nextOffsetBuffer;
   }
   return result;
@@ -282,7 +278,7 @@ const encodeWav = (samples, sampleRate) => {
   const buffer = new ArrayBuffer(44 + samples.length * 2);
   const view = new DataView(buffer);
   const writeString = (offset, string) => {
-    for (let i = 0; i < string.length; i += 1) {
+    for (let i = 0; i < string.length; i++) {
       view.setUint8(offset + i, string.charCodeAt(i));
     }
   };
@@ -299,9 +295,8 @@ const encodeWav = (samples, sampleRate) => {
   view.setUint16(34, 16, true);
   writeString(36, "data");
   view.setUint32(40, samples.length * 2, true);
-
   let offset = 44;
-  for (let i = 0; i < samples.length; i += 1) {
+  for (let i = 0; i < samples.length; i++) {
     const s = Math.max(-1, Math.min(1, samples[i]));
     view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7fff, true);
     offset += 2;
@@ -312,7 +307,7 @@ const encodeWav = (samples, sampleRate) => {
 const arrayBufferToBase64 = (buffer) => {
   const bytes = new Uint8Array(buffer);
   let binary = "";
-  for (let i = 0; i < bytes.byteLength; i += 1) {
+  for (let i = 0; i < bytes.byteLength; i++) {
     binary += String.fromCharCode(bytes[i]);
   }
   return btoa(binary);
@@ -324,24 +319,19 @@ const recordAudio = async (durationMs = 5000, targetRate = 16000) => {
   const source = audioContext.createMediaStreamSource(stream);
   const processor = audioContext.createScriptProcessor(4096, 1, 1);
   const chunks = [];
-  let recordingLength = 0;
-
-  processor.onaudioprocess = (event) => {
-    const input = event.inputBuffer.getChannelData(0);
+  let length = 0;
+  processor.onaudioprocess = (e) => {
+    const input = e.inputBuffer.getChannelData(0);
     chunks.push(new Float32Array(input));
-    recordingLength += input.length;
+    length += input.length;
   };
-
   source.connect(processor);
   processor.connect(audioContext.destination);
-
-  await new Promise((resolve) => setTimeout(resolve, durationMs));
-
+  await new Promise((r) => setTimeout(r, durationMs));
   processor.disconnect();
   source.disconnect();
-  stream.getTracks().forEach((track) => track.stop());
-
-  const merged = mergeBuffers(chunks, recordingLength);
+  stream.getTracks().forEach((t) => t.stop());
+  const merged = mergeBuffers(chunks, length);
   const downsampled = downsampleBuffer(merged, audioContext.sampleRate, targetRate);
   audioContext.close();
   return encodeWav(downsampled, targetRate);
@@ -359,21 +349,16 @@ const requestServerStt = async (wavBuffer) => {
     }),
   });
   const payload = await response.json();
-  if (payload.error) {
-    throw new Error(payload.error);
-  }
+  if (payload.error) throw new Error(payload.error);
   return payload.transcript || "";
 };
 
 sendBtn.addEventListener("click", () => {
-  const text = chatInput.value.trim();
-  handleSend(text);
+  handleSend(chatInput.value.trim());
 });
 
-chatInput.addEventListener("keydown", (event) => {
-  if (event.key === "Enter") {
-    sendBtn.click();
-  }
+chatInput.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") sendBtn.click();
 });
 
 startBtn.addEventListener("click", () => {
@@ -384,60 +369,52 @@ closeModal.addEventListener("click", () => {
   scenarioModal.classList.remove("is-active");
 });
 
-window.addEventListener("click", (event) => {
-  if (event.target === scenarioModal) {
-    scenarioModal.classList.remove("is-active");
-  }
-});
-
 selectScenarioBtns.forEach((btn) => {
   btn.addEventListener("click", () => {
     const scenario = btn.dataset.scenario;
     if (scenario === "business") {
+      state.selectedScenario = scenario;
       scenarioModal.classList.remove("is-active");
-      setStatus("Loading");
-      startSession();
+      apiModal.classList.add("is-active");
     }
   });
+});
+
+closeApiModal.addEventListener("click", () => {
+  apiModal.classList.remove("is-active");
+});
+
+selectApiBtns.forEach((btn) => {
+  btn.addEventListener("click", () => {
+    state.selectedApi = btn.dataset.api;
+    apiModal.classList.remove("is-active");
+    setStatus("Loading");
+    startSession();
+  });
+});
+
+window.addEventListener("click", (e) => {
+  if (e.target === scenarioModal) scenarioModal.classList.remove("is-active");
+  if (e.target === apiModal) apiModal.classList.remove("is-active");
 });
 
 resetBtn.addEventListener("click", resetSession);
 
 voiceBtn.addEventListener("click", () => {
   if (state.recording) return;
-  if (!navigator.mediaDevices?.getUserMedia) {
-    voiceStatus.textContent = "Microphone access not available in this browser.";
-    return;
-  }
+  if (!navigator.mediaDevices?.getUserMedia) return;
   const recordSeconds = Math.max(2, state.settings.recordSeconds);
-  const recordMs = recordSeconds * 1000;
   state.recording = true;
   voiceBtn.textContent = "Recording...";
-  voiceStatus.textContent = `Recording ${recordSeconds} seconds...`;
-  addBubble("Recording...", "coach");
-
-  recordAudio(recordMs, 16000)
-    .then((wavBuffer) => requestServerStt(wavBuffer))
-    .then((transcript) => {
-      if (!transcript) {
-        voiceStatus.textContent = "No speech detected. Try again.";
-        addBubble("No speech detected.", "coach");
-        return;
-      }
-      voiceStatus.textContent = "Transcribed. Sending...";
-      addBubble("Transcribed. Sending response...", "coach");
-      handleSend(transcript);
-    })
-    .catch((error) => {
-      voiceStatus.textContent = `Voice error: ${error.message}`;
-      addBubble(`Voice error: ${error.message}`, "coach");
+  recordAudio(recordSeconds * 1000, 16000)
+    .then((wav) => requestServerStt(wav))
+    .then((t) => {
+      if (!t) return;
+      handleSend(t);
     })
     .finally(() => {
       state.recording = false;
       voiceBtn.textContent = "Record 5s";
-      if (!voiceStatus.textContent.startsWith("Voice error")) {
-        voiceStatus.textContent = "Tap record to speak again.";
-      }
     });
 });
 
@@ -451,34 +428,20 @@ modeButtons.forEach((btn) => {
 
 scenarioCards.forEach((card) => {
   card.addEventListener("click", () => {
-    scenarioCards.forEach((item) => item.classList.remove("is-active"));
+    scenarioCards.forEach((i) => i.classList.remove("is-active"));
     card.classList.add("is-active");
   });
 });
 
-settingsForm.addEventListener("submit", (event) => {
-  event.preventDefault();
-  const newTimeout = Number(timeoutInput.value) || 240;
-  const newRecordSeconds = Number(recordSecondsInput.value) || 5;
-  const selectedMode = [...inputModeRadios].find((radio) => radio.checked)?.value;
-
-  state.settings.timeout = newTimeout;
-  state.settings.recordSeconds = newRecordSeconds;
+settingsForm.addEventListener("submit", (e) => {
+  e.preventDefault();
+  state.settings.timeout = Number(timeoutInput.value) || 240;
+  state.settings.recordSeconds = Number(recordSecondsInput.value) || 5;
   state.settings.ttsEnabled = ttsToggle.checked;
-  state.mode = selectedMode || "chat";
-
+  state.mode = [...inputModeRadios].find((r) => r.checked)?.value || "chat";
   updateEnvPanel();
   updateModeView();
   saveSettings();
-});
-
-inputModeRadios.forEach((radio) => {
-  radio.addEventListener("change", () => {
-    if (!radio.checked) return;
-    state.mode = radio.value;
-    updateModeView();
-    saveSettings();
-  });
 });
 
 ttsToggle.addEventListener("change", () => {

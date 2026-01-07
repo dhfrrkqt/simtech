@@ -76,7 +76,7 @@ STAGE_1 = Stage(
     key="STAGE_1",
     title="The Approach",
     prompt=(
-        "At the SLUSH 2025 startup lounge, you spot an empty seat in a crowded area. "
+        "At the SusHi Tech Tokyo 2026 startup lounge, you spot an empty seat in a crowded area. "
         "Do you ask to sit?"
     ),
     branches=(
@@ -317,8 +317,8 @@ STAGE_4 = Stage(
 STANDUP = StandupScenario(
     key="standup",
     title="Startup Standup 2.0: The Bottleneck Breaker",
-    description="You meet Sarah in the SLUSH 2025 startup lounge.",
-    background="Background: SLUSH 2025 startup lounge",
+    description="You meet Sarah in the SusHi Tech Tokyo 2026 startup lounge.",
+    background="Background: SusHi Tech Tokyo 2026 startup lounge",
     npc_state="NPC: Sarah (VC) - state: busy high, guarded high",
     items="Items: candy, QR business card",
     success_message="Nice. I am interested. Let's follow up in a proper meeting.",

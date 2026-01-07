@@ -41,16 +41,25 @@ def _env_value(name: str, default: str) -> str:
     return raw.strip()
 
 
-def build_agent() -> Agent:
+def build_agent(api_choice: str = "gemini") -> Agent:
     load_dotenv()
-    api_key = _require_api_key()
-    use_vertex = _env_flag("GOOGLE_GENAI_USE_VERTEXAI", False)
-    model_name = _env_value("GEMINI_MODEL", DEFAULT_MODEL)
-    model = Gemini(
-        model=model_name,
-        api_key=api_key,
-        use_vertexai=use_vertex,
-    )
+    
+    if api_choice == "openai":
+        api_key = os.getenv("OPENAI_API_KEY")
+        if not api_key:
+            raise RuntimeError("Missing OPENAI_API_KEY environment variable.")
+        from google.adk.models import Gemini 
+        model = Gemini(model="gpt-4", api_key=api_key) 
+    else:
+        api_key = _require_api_key()
+        use_vertex = _env_flag("GOOGLE_GENAI_USE_VERTEXAI", False)
+        model_name = _env_value("GEMINI_MODEL", DEFAULT_MODEL)
+        model = Gemini(
+            model=model_name,
+            api_key=api_key,
+            use_vertexai=use_vertex,
+        )
+
     return Agent(
         name="evaluator_agent",
         description="Evaluates cafe ordering conversations.",

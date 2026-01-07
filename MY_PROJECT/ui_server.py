@@ -43,6 +43,7 @@ class SessionState:
     transcript: list[str] = field(default_factory=list) # 대화 내역 전체
     start_time: float = field(default_factory=time.monotonic) # 세션 시작 시간
     time_limit_seconds: int = DEFAULT_TIME_LIMIT_SECONDS # 세션 시간 제한
+    api_choice: str = "gemini" # 사용자가 선택한 AI API (gemini 또는 openai)
 
 # 활성화된 모든 세션을 저장하는 딕셔너리
 SESSIONS: dict[str, SessionState] = {}
@@ -69,9 +70,9 @@ def _session_timeout(session: SessionState) -> bool:
     """세션이 제한 시간을 초과했는지 확인합니다."""
     return time.monotonic() - session.start_time >= session.time_limit_seconds
 
-async def _run_evaluator(transcript: list[str]) -> str:
+async def _run_evaluator(transcript: list[str], api_choice: str = "gemini") -> str:
     """대화 내역을 바탕으로 평가 에이전트를 실행하여 피드백을 생성합니다."""
-    eval_runner, eval_session = await build_eval_runtime()
+    eval_runner, eval_session = await build_eval_runtime(api_choice=api_choice)
     eval_prompt = build_eval_prompt("standup", transcript)
     events = eval_runner.run_async(
         user_id=eval_session.user_id,
@@ -188,6 +189,7 @@ class UIRequestHandler(SimpleHTTPRequestHandler):
             session_id=session_id,
             scenario_key=scenario.key,
             time_limit_seconds=time_limit,
+            api_choice=payload.get("api_choice", "gemini"),
         )
         SESSIONS[session_id] = session
         stage = scenario.stages[0]
@@ -215,6 +217,18 @@ class UIRequestHandler(SimpleHTTPRequestHandler):
             return
         session = SESSIONS[session_id]
         scenario = get_scenario()
+
+        # 이미 종료된 세션인 경우 중복 처리 방지
+        if session.completed:
+            self._json_response(
+                {
+                    "completed": True,
+                    "final_rank": session.final_rank,
+                    "score": _calculate_score(session.final_rank),
+                    "system": "The session has already ended.",
+                }
+            )
+            return
 
         # 타임아웃 체크
         if _session_timeout(session):
@@ -308,7 +322,7 @@ class UIRequestHandler(SimpleHTTPRequestHandler):
         eval_text = None
         if session.completed:
             try:
-                eval_text = asyncio.run(_run_evaluator(session.transcript))
+                eval_text = asyncio.run(_run_evaluator(session.transcript, api_choice=session.api_choice))
             except Exception:
                 eval_text = None
             if eval_text:

@@ -61,7 +61,7 @@
           <button class="scenario-card is-active" data-scenario="standup">
             <span class="pill">01</span>
             <h2>Startup Standup 2.0: The Bottleneck Breaker</h2>
-            <p>SLUSH lounge conversation with Sarah (VC).</p>
+            <p>SusHi Tech Tokyo 2026 networking lounge conversation with Sarah (VC).</p>
           </button>
         </div>
       </div>
@@ -180,7 +180,7 @@
         <div class="inspector-card">
           <p class="inspector-title">Prompt</p>
           <p class="prompt-text" id="promptText">
-            At the SLUSH 2025 startup lounge, you spot an empty seat in a
+            At the SusHi Tech Tokyo 2026 startup lounge, you spot an empty seat in a
             crowded area. Do you ask to sit?
           </p>
         </div>
@@ -220,7 +220,7 @@
         <div class="scenario-option-card">
           <h3>Business</h3>
           <p class="scenario-desc">
-            Networking at the SLUSH 2025 lounge.
+            Networking at the SusHi Tech Tokyo 2026 lounge.
             Find Sarah, a VC, and practice your pitch in a realistic business environment.
           </p>
           <button class="primary select-scenario-btn" data-scenario="business">Select</button>
@@ -241,11 +241,40 @@
         </div>
       </div>
     </div>
-  </div>
+    <!-- API 선택 모달 (시나리오 선택 후 노출) -->
+    <div id="apiModal" class="modal-overlay">
+      <div class="modal-content">
+        <header class="modal-header">
+          <h2>Select AI Provider</h2>
+          <!-- 모달 닫기 버튼 -->
+          <button id="closeApiModal" class="close-btn">&times;</button>
+        </header>
 
-  <!-- 애플리케이션 로직을 담당하는 자바스크립트 파일 연결 -->
-  <!-- 모든 HTML 요소가 파싱된 후 실행되도록 하단에 배치하고 defer 속성 추가 -->
-  <script src="app.js" defer></script>
+        <div class="scenario-options-container">
+          <!-- 1. Gemini API 선택 -->
+          <div class="scenario-option-card">
+            <h3>Gemini API</h3>
+            <p class="scenario-desc">
+              Fast and intuitive. Values the overall atmosphere and natural communication of your responses.
+            </p>
+            <button class="primary select-api-btn" data-api="gemini">Select Gemini</button>
+          </div>
+
+          <!-- 2. OpenAI API 선택 -->
+          <div class="scenario-option-card">
+            <h3>OpenAI API</h3>
+            <p class="scenario-desc">
+              Detailed and precise. Focuses on logical consistency, professional vocabulary, and structural accuracy.
+            </p>
+            <button class="primary select-api-btn" data-api="openai">Select OpenAI</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 애플리케이션 로직을 담당하는 자바스크립트 파일 연결 -->
+    <!-- 모든 HTML 요소가 파싱된 후 실행되도록 하단에 배치하고 defer 속성 추가 -->
+    <script src="app.js" defer></script>
 </body>
 
 </html>
