@@ -1,0 +1,221 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Test Agents Client</title>
+  <link rel="stylesheet" href="styles.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Newsreader:wght@400;600;700&display=swap"
+    rel="stylesheet" />
+</head>
+
+<body>
+  <div class="bg-glow"></div>
+  <div class="bg-lines"></div>
+
+  <main class="shell">
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand-mark">TA</div>
+        <div>
+          <p class="brand-title">Test Agents</p>
+          <p class="brand-sub">Client Console</p>
+        </div>
+      </div>
+      <div class="mode-toggle" aria-label="Input mode">
+        <button class="toggle-btn is-active" data-mode="chat">Chat</button>
+        <button class="toggle-btn" data-mode="voice">Voice</button>
+      </div>
+    </header>
+
+    <section class="hero">
+      <div class="hero-copy">
+        <p class="eyebrow">Scenario Client</p>
+        <h1>Practice the pitch like a live session.</h1>
+        <p class="hero-note">
+          This client is structured like a mini-lesson. Each stage gives you a
+          target prompt, then you practice the response in chat or voice mode.
+        </p>
+        <div class="hero-actions">
+          <button class="primary" id="startBtn">Start Session</button>
+          <button class="ghost" id="resetBtn">Reset</button>
+        </div>
+      </div>
+      <div class="hero-card">
+        <p class="card-title">Scenario Library</p>
+        <div class="scenario-grid">
+          <button class="scenario-card is-active" data-scenario="standup">
+            <span class="pill">01</span>
+            <h2>Startup Standup 2.0: The Bottleneck Breaker</h2>
+            <p>SLUSH lounge conversation with Sarah (VC).</p>
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <section class="workspace">
+      <div class="chat">
+        <div class="chat-header">
+          <div>
+            <p class="chat-title">Live Session</p>
+            <p class="chat-sub" id="stageLabel">
+              The Approach - Ask to sit down.
+            </p>
+          </div>
+          <div class="session-chip">
+            <span class="dot"></span>
+            <span>Local demo</span>
+          </div>
+        </div>
+        <div class="chat-body" id="chatBody"></div>
+        <div class="chat-input" id="chatInputRow">
+          <input id="chatInput" type="text" placeholder="Type your response" autocomplete="off" />
+          <button id="sendBtn">Send</button>
+        </div>
+        <div class="voice-panel" id="voicePanel">
+          <button class="primary" id="voiceBtn">Record 5s</button>
+          <p class="voice-note" id="voiceStatus">
+            Voice input records audio and sends it to the server for Whisper STT.
+          </p>
+        </div>
+      </div>
+
+      <aside class="inspector">
+        <div class="inspector-card">
+          <p class="inspector-title">Session Settings</p>
+          <form class="settings" id="settingsForm">
+            <label class="field">
+              <span>Timeout (seconds)</span>
+              <input type="number" id="timeoutInput" min="30" max="600" step="10" value="240" />
+            </label>
+            <label class="field">
+              <span>Record length (seconds)</span>
+              <input type="number" id="recordSecondsInput" min="2" max="15" step="1" value="5" />
+            </label>
+            <label class="field field-inline">
+              <input type="checkbox" id="ttsToggle" />
+              <span>Enable TTS output</span>
+            </label>
+            <div class="field">
+              <span>Input mode</span>
+              <div class="radio-group">
+                <label>
+                  <input type="radio" name="inputMode" value="chat" checked />
+                  Chat
+                </label>
+                <label>
+                  <input type="radio" name="inputMode" value="voice" />
+                  Voice
+                </label>
+              </div>
+            </div>
+            <button class="primary" type="submit">Apply Settings</button>
+            <p class="form-note">
+              These mirror `.env` values for timeout, TTS, and input mode.
+            </p>
+          </form>
+        </div>
+        <div class="inspector-card">
+          <p class="inspector-title">Scenario State</p>
+          <div class="stat-list">
+            <div class="stat">
+              <span>Stage</span>
+              <strong id="stageCount">1 / 4</strong>
+            </div>
+            <div class="stat">
+              <span>Mode</span>
+              <strong id="modeLabel">Chat</strong>
+            </div>
+            <div class="stat">
+              <span>Status</span>
+              <strong id="sessionStatus">Idle</strong>
+            </div>
+          </div>
+        </div>
+        <div class="inspector-card">
+          <p class="inspector-title">Environment</p>
+          <div class="stat-list">
+            <div class="stat">
+              <span>Timeout</span>
+              <strong id="envTimeout">240s</strong>
+            </div>
+            <div class="stat">
+              <span>TTS</span>
+              <strong id="envTts">Off</strong>
+            </div>
+            <div class="stat">
+              <span>Input</span>
+              <strong id="envMode">Chat</strong>
+            </div>
+            <div class="stat">
+              <span>Record</span>
+              <strong id="envRecord">5s</strong>
+            </div>
+          </div>
+        </div>
+        <div class="inspector-card">
+          <p class="inspector-title">Prompt</p>
+          <p class="prompt-text" id="promptText">
+            At the SLUSH 2025 startup lounge, you spot an empty seat in a
+            crowded area. Do you ask to sit?
+          </p>
+        </div>
+        <div class="inspector-card">
+          <p class="inspector-title">Evaluation</p>
+          <div class="score-panel">
+            <span>Score</span>
+            <strong id="scoreValue">--</strong>
+          </div>
+          <p class="score-note" id="scoreNote">
+            Score updates after the session ends.
+          </p>
+        </div>
+        <div class="inspector-card">
+          <p class="inspector-title">CLI</p>
+          <code class="cli">python main.py</code>
+          <code class="cli">SCENARIO_INPUT_MODE=voice</code>
+        </div>
+      </aside>
+    </section>
+  </main>
+
+  <div id="scenarioModal" class="modal-overlay">
+    <div class="modal-content">
+      <header class="modal-header">
+        <h2>Select Your Experience</h2>
+        <button id="closeModal" class="close-btn">&times;</button>
+      </header>
+
+      <div class="scenario-options-container">
+        <div class="scenario-option-card">
+          <h3>Business</h3>
+          <p class="scenario-desc">
+            Networking at the SLUSH 2025 lounge.
+            Find Sarah, a VC, and practice your pitch in a realistic business environment.
+          </p>
+          <button class="primary select-scenario-btn" data-scenario="business">Select</button>
+        </div>
+
+        <div class="scenario-option-card is-locked">
+          <h3>Daily Life</h3>
+          <p class="scenario-desc">Coming Soon</p>
+          <button class="ghost" disabled>Locked</button>
+        </div>
+
+        <div class="scenario-option-card is-locked">
+          <h3>Industry</h3>
+          <p class="scenario-desc">Coming Soon</p>
+          <button class="ghost" disabled>Locked</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js" defer></script>
+</body>
+
+</html>
