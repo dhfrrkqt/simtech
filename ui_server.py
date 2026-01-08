@@ -69,25 +69,60 @@ def _session_timeout(session: SessionState) -> bool:
 
 
 async def _run_evaluator(transcript: list[str], api_choice: str = "gemini") -> str:
-    eval_runner, eval_session = await build_eval_runtime(api_choice=api_choice)
-    eval_prompt = build_eval_prompt("standup", transcript)
-    events = eval_runner.run_async(
-        user_id=eval_session.user_id,
-        session_id=eval_session.id,
-        new_message=build_eval_message(eval_prompt),
-    )
-    chunks: list[str] = []
-    async for event in events:
-        content = getattr(event, "content", None)
-        if not content or not getattr(content, "parts", None):
-            continue
-        if getattr(event, "author", "") == "user":
-            continue
-        text = "".join(part.text or "" for part in content.parts)
-        if text:
-            chunks.append(text)
-    await eval_runner.close()
-    return "".join(chunks)
+    """
+    대화 기록을 평가하여 피드백 텍스트를 반환합니다.
+    api_choice에 따라 Gemini 또는 OpenAI를 사용합니다.
+    """
+    if api_choice == "openai":
+        # OpenAI 사용 (LiteLLM)
+        import litellm
+        import os
+        from dotenv import load_dotenv
+        from evaluator_agent.agent import EVALUATOR_PROMPT
+        
+        load_dotenv()
+        openai_key = os.getenv("OPENAI_API_KEY")
+        if not openai_key:
+            raise RuntimeError("Missing OPENAI_API_KEY environment variable.")
+        
+        # 평가 프롬프트 구성
+        eval_prompt_content = build_eval_prompt("standup", transcript)
+        
+        messages = [
+            {"role": "system", "content": EVALUATOR_PROMPT},
+            {"role": "user", "content": eval_prompt_content}
+        ]
+        
+        # LiteLLM으로 OpenAI 호출
+        response = await litellm.acompletion(
+            model="gpt-4",
+            messages=messages,
+            api_key=openai_key
+        )
+        
+        return response['choices'][0]['message']['content']
+    
+    else:
+        # Gemini 사용 (기존 ADK 로직)
+        eval_runner, eval_session = await build_eval_runtime(api_choice="gemini")
+        eval_prompt = build_eval_prompt("standup", transcript)
+        events = eval_runner.run_async(
+            user_id=eval_session.user_id,
+            session_id=eval_session.id,
+            new_message=build_eval_message(eval_prompt),
+        )
+        chunks: list[str] = []
+        async for event in events:
+            content = getattr(event, "content", None)
+            if not content or not getattr(content, "parts", None):
+                continue
+            if getattr(event, "author", "") == "user":
+                continue
+            text = "".join(part.text or "" for part in content.parts)
+            if text:
+                chunks.append(text)
+        await eval_runner.close()
+        return "".join(chunks)
 
 
 def _calculate_score(final_rank: str | None) -> str:
@@ -219,15 +254,44 @@ class UIRequestHandler(SimpleHTTPRequestHandler):
             return
 
         if _session_timeout(session):
+            print(f"DEBUG: Session timeout detected")
             session.completed = True
             session.final_rank = session.final_rank or "F"
+            
+            # 타임아웃 시에도 평가 실행
+            eval_text = None
+            try:
+                print(f"DEBUG: Running evaluator for timeout case...")
+                eval_text = asyncio.run(_run_evaluator(session.transcript, api_choice=session.api_choice))
+                print(f"DEBUG: Timeout evaluator succeeded. Result length: {len(eval_text) if eval_text else 0}")
+            except Exception as e:
+                print(f"DEBUG: Timeout evaluator failed: {type(e).__name__}: {e}")
+                eval_text = None
+            
+            # 평가 결과에서 점수 추출
+            if eval_text:
+                score_data = _extract_score(eval_text)
+                score_25 = None
+                if score_data:
+                    score_value, score_max = score_data
+                    if score_max == 25:
+                        score_25 = score_value
+                    elif score_max == 5:
+                        score_25 = score_value * 5
+                rank_from_score = (
+                    _score_to_rank(score_25) if score_25 is not None else None
+                )
+                if rank_from_score:
+                    session.final_rank = rank_from_score
+            
             self._json_response(
                 {
                     "completed": True,
                     "sarah": scenario.fail_message,
-                    "system": "Sarah leaves her seat to head to the next meeting.",
+                    "system": "Time ran out. Sarah leaves her seat to head to the next meeting.",
                     "final_rank": session.final_rank,
                     "score": _calculate_score(session.final_rank),
+                    "evaluation": eval_text,
                 }
             )
             return
@@ -237,6 +301,7 @@ class UIRequestHandler(SimpleHTTPRequestHandler):
             return
 
         session.transcript.append(f"You: {text}")
+        print(f"DEBUG: User message - Stage index: {session.stage_index}, Recovery pending: {session.recovery_pending}")
 
         sarah_response = None
         coach_prompt = None
@@ -268,6 +333,7 @@ class UIRequestHandler(SimpleHTTPRequestHandler):
             else:
                 stage = scenario.stages[session.stage_index]
                 branch = stage.match(text)
+                print(f"DEBUG: Matched branch {branch.key} ({branch.intent}) at {stage.key}")
                 session.last_branch = branch
                 session.affinity += branch.affinity_delta
                 session.trust += branch.trust_delta
@@ -278,6 +344,7 @@ class UIRequestHandler(SimpleHTTPRequestHandler):
                     session.recovery_pending = True
                     coach_prompt = "Sarah looks cold. How do you respond?"
                 elif branch.ends_conversation:
+                    print(f"DEBUG: Conversation ended by branch {branch.key}")
                     session.completed = True
                     session.final_rank = "F"
                 else:
@@ -291,6 +358,11 @@ class UIRequestHandler(SimpleHTTPRequestHandler):
         if session.completed and not session.recovery_pending and not ended_with_stage4_response:
             if scenario.success_message and scenario.success_message != sarah_response:
                 success_message = scenario.success_message
+                # 사라의 대사가 비어있을 경우 성공 메시지로 채움
+                if not sarah_response:
+                    sarah_response = success_message
+                else:
+                    sarah_response = f"{sarah_response}\n\n{success_message}"
 
         next_stage = None
         if not session.completed and session.stage_index < len(scenario.stages):
@@ -302,9 +374,14 @@ class UIRequestHandler(SimpleHTTPRequestHandler):
 
         eval_text = None
         if session.completed:
+            print(f"DEBUG: Session completed. Running evaluator... (transcript length: {len(session.transcript)})")
             try:
                 eval_text = asyncio.run(_run_evaluator(session.transcript, api_choice=session.api_choice))
-            except Exception:
+                print(f"DEBUG: Evaluator succeeded. Result length: {len(eval_text) if eval_text else 0}")
+            except Exception as e:
+                print(f"DEBUG: Evaluator failed with exception: {type(e).__name__}: {e}")
+                import traceback
+                traceback.print_exc()
                 eval_text = None
             if eval_text:
                 score_data = _extract_score(eval_text)

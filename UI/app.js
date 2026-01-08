@@ -210,19 +210,13 @@ const handleSend = async (text) => {
       addBubble(payload.error, "agent");
       return;
     }
-    if (payload.sarah) {
+    if (payload.sarah && !payload.completed) {
       addBubble(payload.sarah, "agent");
       speakText(payload.sarah);
     }
-    if (payload.system) addBubble(payload.system, "coach");
-    if (payload.coach_prompt) addBubble(payload.coach_prompt, "coach");
-    if (payload.success_message) {
-      addBubble(payload.success_message, "agent");
-      speakText(payload.success_message);
-    }
-    if (payload.evaluation) addBubble(payload.evaluation, "coach");
-    if (payload.score) scoreValue.textContent = payload.score;
-    if (payload.final_rank) scoreNote.textContent = `Final rank: ${payload.final_rank}`;
+    if (payload.system && !payload.completed) addBubble(payload.system, "coach");
+    if (payload.coach_prompt && !payload.completed) addBubble(payload.coach_prompt, "coach");
+
     if (payload.stage) {
       state.stage = payload.stage;
       updateStageView();
@@ -236,6 +230,23 @@ const handleSend = async (text) => {
       sendBtn.disabled = true;
       voiceBtn.disabled = true;
       voiceBtn.textContent = "Session Ended";
+
+      // 사이드바 업데이트
+      if (payload.score) scoreValue.textContent = payload.score;
+      if (payload.final_rank) scoreNote.textContent = `Final rank: ${payload.final_rank}`;
+
+      // 1. 사라의 마지막 대사 (coach 말풍선)
+      if (payload.sarah) {
+        addBubble(payload.sarah, "coach");
+        speakText(payload.sarah);
+      }
+
+      // 2. AI 평가 결과 (coach 말풍선)
+      if (payload.evaluation) {
+        addBubble(payload.evaluation, "coach");
+      } else {
+        addBubble(`The conversation has ended. Your final score is ${payload.score || "--"}.`, "coach");
+      }
     }
   } catch (error) {
     addBubble("Failed to reach server.", "agent");

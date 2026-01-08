@@ -71,26 +71,60 @@ def _session_timeout(session: SessionState) -> bool:
     return time.monotonic() - session.start_time >= session.time_limit_seconds
 
 async def _run_evaluator(transcript: list[str], api_choice: str = "gemini") -> str:
-    """대화 내역을 바탕으로 평가 에이전트를 실행하여 피드백을 생성합니다."""
-    eval_runner, eval_session = await build_eval_runtime(api_choice=api_choice)
-    eval_prompt = build_eval_prompt("standup", transcript)
-    events = eval_runner.run_async(
-        user_id=eval_session.user_id,
-        session_id=eval_session.id,
-        new_message=build_eval_message(eval_prompt),
-    )
-    chunks: list[str] = []
-    async for event in events:
-        content = getattr(event, "content", None)
-        if not content or not getattr(content, "parts", None):
-            continue
-        if getattr(event, "author", "") == "user":
-            continue
-        text = "".join(part.text or "" for part in content.parts)
-        if text:
-            chunks.append(text)
-    await eval_runner.close()
-    return "".join(chunks)
+    """
+    대화 기록을 평가하여 피드백 텍스트를 반환합니다.
+    api_choice에 따라 Gemini 또는 OpenAI를 사용합니다.
+    """
+    if api_choice == "openai":
+        # OpenAI 사용 (LiteLLM)
+        import litellm
+        import os
+        from dotenv import load_dotenv
+        from evaluator_agent.agent import EVALUATOR_PROMPT
+        
+        load_dotenv()
+       openai_key = os.getenv("OPENAI_API_KEY")
+        if not openai_key:
+            raise RuntimeError("Missing OPENAI_API_KEY environment variable.")
+        
+        # 평가 프롬프트 구성
+        eval_prompt_content = build_eval_prompt("standup", transcript)
+        
+        messages = [
+            {"role": "system", "content": EVALUATOR_PROMPT},
+            {"role": "user", "content": eval_prompt_content}
+        ]
+        
+        # LiteLLM으로 OpenAI 호출
+        response = await litellm.acompletion(
+            model="gpt-4",
+            messages=messages,
+            api_key=openai_key
+        )
+        
+        return response['choices'][0]['message']['content']
+    
+    else:
+        # Gemini 사용 (기존 ADK 로직)
+        eval_runner, eval_session = await build_eval_runtime(api_choice="gemini")
+        eval_prompt = build_eval_prompt("standup", transcript)
+        events = eval_runner.run_async(
+            user_id=eval_session.user_id,
+            session_id=eval_session.id,
+            new_message=build_eval_message(eval_prompt),
+        )
+        chunks: list[str] = []
+        async for event in events:
+            content = getattr(event, "content", None)
+            if not content or not getattr(content, "parts", None):
+                continue
+            if getattr(event, "author", "") == "user":
+                continue
+            text = "".join(part.text or "" for part in content.parts)
+            if text:
+                chunks.append(text)
+        await eval_runner.close()
+        return "".join(chunks)
 
 def _calculate_score(final_rank: str | None) -> str:
     """랭크에 따른 점수 문자열을 반환합니다."""

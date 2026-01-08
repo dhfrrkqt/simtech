@@ -273,33 +273,18 @@ const handleSend = async (text) => {
       addBubble(payload.error, "agent");
       return;
     }
-    // NPC(사라)의 응답 표시
-    if (payload.sarah) {
+    // NPC(사라)의 응답 표시 (대화 진행 중인 경우에만 즉시 표시)
+    if (payload.sarah && !payload.completed) {
       addBubble(payload.sarah, "agent");
       speakText(payload.sarah);
     }
-    // 시스템 메시지 응답 표시
-    if (payload.system) {
+    // 시스템 메시지 응답 표시 (대화 진행 중인 경우에만)
+    if (payload.system && !payload.completed) {
       addBubble(payload.system, "coach");
     }
-    // 코치(가이드)의 조언 표시
-    if (payload.coach_prompt) {
+    // 코치(가이드)의 조언 표시 (대화 진행 중인 경우에만)
+    if (payload.coach_prompt && !payload.completed) {
       addBubble(payload.coach_prompt, "coach");
-    }
-    // 성공 시 특별 메시지 표시
-    if (payload.success_message) {
-      addBubble(payload.success_message, "agent");
-      speakText(payload.success_message);
-    }
-    // 대화 종료 후 평가 결과 표시
-    if (payload.evaluation) {
-      addBubble(payload.evaluation, "coach");
-    }
-    if (payload.score) {
-      scoreValue.textContent = payload.score;
-    }
-    if (payload.final_rank) {
-      scoreNote.textContent = `Final rank: ${payload.final_rank}`;
     }
     // 다음 스테이지로 업데이트
     if (payload.stage) {
@@ -312,11 +297,27 @@ const handleSend = async (text) => {
     // 세션 완료 처리
     if (payload.completed) {
       setStatus("Complete");
-      // 세션 종료 시 입력 비활성화
       chatInput.disabled = true;
       sendBtn.disabled = true;
       voiceBtn.disabled = true;
       voiceBtn.textContent = "Session Ended";
+
+      // 사이드바 업데이트
+      if (payload.score) scoreValue.textContent = payload.score;
+      if (payload.final_rank) scoreNote.textContent = `Final rank: ${payload.final_rank}`;
+
+      // 1. 사라의 마지막 대사 (coach 말풍선)
+      if (payload.sarah) {
+        addBubble(payload.sarah, "coach");
+        speakText(payload.sarah);
+      }
+
+      // 2. AI 평가 결과 (coach 말풍선)
+      if (payload.evaluation) {
+        addBubble(payload.evaluation, "coach");
+      } else {
+        addBubble(`The conversation has ended. Your final score is ${payload.score || "--"}.`, "coach");
+      }
     }
   } catch (error) {
     addBubble("Failed to reach server.", "agent");
