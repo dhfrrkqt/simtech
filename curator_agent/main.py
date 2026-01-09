@@ -58,8 +58,21 @@ def _choose_input_mode() -> str:
         print("Please enter 1 or 2.")
 
 
+def _speak(text: str) -> None:
+    if os.getenv("TTS_ENABLED", "").lower() != "true":
+        return
+    try:
+        import pyttsx3
+        engine = pyttsx3.init()
+        engine.say(text)
+        engine.runAndWait()
+    except Exception:
+        pass
+
+
 def _handle_timeout(scenario) -> None:
     print(f"Sarah: {scenario.fail_message}")
+    _speak(scenario.fail_message)
     print("Sarah leaves her seat to head to the next meeting.")
 
 
@@ -182,6 +195,7 @@ async def main() -> int:
             trust += branch.trust_delta
 
             print(f"Sarah: {branch.response}")
+            _speak(branch.response)
             transcript.append(f"Sarah: {branch.response}")
 
             if stage.recovery and stage.recovery.should_offer(branch):
@@ -208,14 +222,17 @@ async def main() -> int:
                     affinity += recovery_branch.affinity_delta
                     trust += recovery_branch.trust_delta
                     print(f"Sarah: {recovery_branch.response}")
+                    _speak(recovery_branch.response)
                     transcript.append(f"Sarah: {recovery_branch.response}")
                 elif branch.ends_conversation:
                     print("Sarah: The conversation has ended.")
+                    _speak("The conversation has ended.")
                     final_rank = "F"
                     break
 
             if branch.ends_conversation:
                 print("Sarah: The conversation has ended.")
+                _speak("The conversation has ended.")
                 final_rank = "F"
                 break
 
@@ -228,6 +245,7 @@ async def main() -> int:
     print()
     if completed:
         print(f"Sarah: {scenario.success_message}")
+        _speak(scenario.success_message)
     if exited_early:
         print("Exiting.")
     print("=== Evaluation ===")

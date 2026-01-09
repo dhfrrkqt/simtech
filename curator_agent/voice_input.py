@@ -26,13 +26,19 @@ def _transcribe_audio_bytes(
     except Exception as exc:
         raise VoiceInputError(f"Failed to load Whisper model '{model_name}'.") from exc
 
-    with tempfile.NamedTemporaryFile(suffix=".wav", delete=True) as wav_file:
+    # Windows-compatible temp file handling
+    wav_file = tempfile.NamedTemporaryFile(suffix=".wav", delete=False)
+    wav_path = wav_file.name
+    try:
         wav_file.write(audio_bytes)
-        wav_file.flush()
+        wav_file.close() # Close to allow ffmpeg/whisper to open it
         try:
-            result = model.transcribe(wav_file.name, language=normalized_lang)
+            result = model.transcribe(wav_path, language=normalized_lang)
         except Exception as exc:
             raise VoiceInputError("Whisper transcription failed.") from exc
+    finally:
+        if os.path.exists(wav_path):
+            os.remove(wav_path)
 
     text = result.get("text", "") if isinstance(result, dict) else ""
     return text.strip()

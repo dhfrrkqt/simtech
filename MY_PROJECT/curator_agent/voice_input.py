@@ -26,14 +26,19 @@ def _transcribe_audio_bytes(
     except Exception as exc:
         raise VoiceInputError(f"Whisper 모델 '{model_name}'을 로드하지 못했습니다.") from exc
 
-    # 임시 파일을 생성하여 오디오 데이터를 저장한 후 변환합니다.
-    with tempfile.NamedTemporaryFile(suffix=".wav", delete=True) as wav_file:
+    # 임시 파일을 생성하여 오디오 데이터를 저장한 후 변환합니다. (Windows 호환성 위해 delete=False 및 close 처리)
+    wav_file = tempfile.NamedTemporaryFile(suffix=".wav", delete=False)
+    wav_path = wav_file.name
+    try:
         wav_file.write(audio_bytes)
-        wav_file.flush()
+        wav_file.close() # ffmpeg가 접근할 수 있도록 파일을 닫습니다.
         try:
-            result = model.transcribe(wav_file.name, language=normalized_lang)
+            result = model.transcribe(wav_path, language=normalized_lang)
         except Exception as exc:
             raise VoiceInputError("Whisper 변환 중 오류가 발생했습니다.") from exc
+    finally:
+        if os.path.exists(wav_path):
+            os.remove(wav_path)
 
     text = result.get("text", "") if isinstance(result, dict) else ""
     return text.strip()

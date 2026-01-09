@@ -22,6 +22,7 @@ uv pip sync -r requirements.txt
 `.env` 파일을 생성하고 아래 내용을 설정하세요:
 ```bash
 GOOGLE_API_KEY=
+OPENAI_API_KEY=
 GOOGLE_GENAI_USE_VERTEXAI=FALSE
 USE_GEMINI=true
 FALLBACK_TO_LOCAL=true

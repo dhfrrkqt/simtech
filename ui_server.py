@@ -206,31 +206,39 @@ class UIRequestHandler(SimpleHTTPRequestHandler):
         self._json_response({"error": "Not found"}, status=404)
 
     def _handle_start(self) -> None:
-        payload = self._read_body()
-        scenario = get_scenario()
-        session_id = uuid.uuid4().hex
-        time_limit = _get_time_limit(payload.get("timeout_seconds"))
-        session = SessionState(
-            session_id=session_id,
-            scenario_key=scenario.key,
-            time_limit_seconds=time_limit,
-            api_choice=payload.get("api_choice", "gemini"),
-        )
-        SESSIONS[session_id] = session
-        stage = scenario.stages[0]
-        self._json_response(
-            {
-                "session_id": session_id,
-                "scenario": {
-                    "title": scenario.title,
-                    "background": scenario.background,
-                    "npc_state": scenario.npc_state,
-                    "items": scenario.items,
-                },
-                "stage": _build_stage_payload(stage, 0, len(scenario.stages)),
-                "record_seconds_default": int(os.getenv("UI_RECORD_SECONDS", "5")),
-            }
-        )
+        try:
+            payload = self._read_body()
+            print(f"DEBUG: Start request payload: {payload}")
+            scenario = get_scenario()
+            print(f"DEBUG: Scenario loaded: {scenario.title}")
+            session_id = uuid.uuid4().hex
+            time_limit = _get_time_limit(payload.get("timeout_seconds"))
+            session = SessionState(
+                session_id=session_id,
+                scenario_key=scenario.key,
+                time_limit_seconds=time_limit,
+                api_choice=payload.get("api_choice", "gemini"),
+            )
+            SESSIONS[session_id] = session
+            stage = scenario.stages[0]
+            self._json_response(
+                {
+                    "session_id": session_id,
+                    "scenario": {
+                        "title": scenario.title,
+                        "background": scenario.background,
+                        "npc_state": scenario.npc_state,
+                        "items": scenario.items,
+                    },
+                    "stage": _build_stage_payload(stage, 0, len(scenario.stages)),
+                    "record_seconds_default": int(os.getenv("UI_RECORD_SECONDS", "5")),
+                }
+            )
+        except Exception as e:
+            print(f"DEBUG: Failed to start session: {e}")
+            import traceback
+            traceback.print_exc()
+            self._json_response({"error": str(e)}, status=500)
 
     def _handle_message(self) -> None:
         payload = self._read_body()
@@ -412,6 +420,7 @@ class UIRequestHandler(SimpleHTTPRequestHandler):
                 "stage": next_stage,
             }
         )
+
 
     def _handle_voice(self) -> None:
         payload = self._read_body()

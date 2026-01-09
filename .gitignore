@@ -2,6 +2,7 @@
 __pycache__/
 *.pyc
 .env
-.conversation_history.json
-*.log
+
+MY_PROJECT/
+
 .DS_Store
